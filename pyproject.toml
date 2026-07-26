@@ -1,0 +1,63 @@
+[tool.poetry]
+name = "fogline-backend"
+version = "0.1.0"
+description = "Fogline — minimal exploration sync API (grow-only H3 cell set per identity)"
+authors = ["Pierre"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.115.0"
+uvicorn = "^0.30.0"
+sqlalchemy = "^2.0.30"
+greenlet = "^3.0.0"
+alembic = "^1.13.0"
+pydantic = "^2.7.0"
+pydantic-settings = "^2.3.0"
+aiosqlite = "^0.20.0"
+python-jose = { extras = ["cryptography"], version = "^3.3.0" }
+
+# Postgres driver — prod only. Kept optional so a local (sqlite) install never
+# has to compile a native driver (asyncpg lacks wheels on very new Pythons).
+# Install for prod with: poetry install --with postgres
+[tool.poetry.group.postgres]
+optional = true
+
+[tool.poetry.group.postgres.dependencies]
+asyncpg = "^0.30.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.0"
+httpx = "^0.27.0"
+black = "^24.4.0"
+isort = "^5.13.0"
+flake8 = "^7.0.0"
+mypy = "^1.10.0"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+# SQLAlchemy's declarative base and Alembic's op module are dynamically typed;
+# strict mode is kept for our own code rather than fought over theirs.
+[[tool.mypy.overrides]]
+module = ["alembic.*"]
+ignore_errors = true
+
+[tool.black]
+line-length = 100
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

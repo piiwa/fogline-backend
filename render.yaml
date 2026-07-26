@@ -1,0 +1,56 @@
+# Render blueprint.
+#
+# Deploy: Render dashboard, New, Blueprint, pick this repository. The only value
+# to supply by hand is DATABASE_URL, which is marked sync:false below so it is
+# never committed. Everything else is derived here.
+#
+# The service NAME is load-bearing: it decides the public hostname
+# (https://fogline-api.onrender.com), which the mobile build is pointed at.
+# Renaming the service means republishing the app.
+services:
+  - type: web
+    name: fogline-api
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+
+    # `--only main,postgres` is deliberate on both halves.
+    #
+    # `postgres` is an OPTIONAL Poetry group, so it is skipped by a plain
+    # install and by `--only main`: asyncpg is kept out of local development on
+    # purpose, because it has to compile from source on very new Pythons. Naming
+    # the group explicitly is what puts the driver in the deployed image, and
+    # without it the service starts, reaches `create_async_engine`, and dies on
+    # `No module named 'asyncpg'`.
+    #
+    # `--only` also leaves black, mypy and pytest out: they belong to the check
+    # pipeline, not to the runtime.
+    buildCommand: |
+      pip install poetry==1.8.5
+      poetry config virtualenvs.create false
+      poetry install --only main,postgres --no-root
+
+    # Migrations run at START rather than at build time. A Render build has no
+    # guarantee of running once per release, while the start command does, and
+    # applying a schema change from a step that may be cached or skipped is how
+    # a deploy ends up serving code against the previous schema.
+    startCommand: |
+      alembic upgrade head
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: DATABASE_URL
+        # Supplied in the dashboard. The app normalises a bare Neon DSN into an
+        # asyncpg one and strips the libpq-only query parameters, so the string
+        # Neon hands out can be pasted verbatim.
+        sync: false
+      # Name must match `Settings.JWT_SECRET_KEY` exactly. Under any other name
+      # pydantic-settings falls back to its default, and the service would sign
+      # tokens with the string "dev-secret-change-me" in production.
+      - key: JWT_SECRET_KEY
+        generateValue: true
